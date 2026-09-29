@@ -42,7 +42,7 @@
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/animeulasan-ui/anitoki.git
+git clone https://github.com/kokangk/anitoki.git
 cd anitoki
 ```
 
