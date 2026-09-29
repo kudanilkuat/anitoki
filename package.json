@@ -1,0 +1,33 @@
+{
+  "name": "komik-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start -p 3001"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-svg-core": "^7.3.0",
+    "@fortawesome/free-regular-svg-icons": "^7.3.0",
+    "@fortawesome/free-solid-svg-icons": "^7.3.0",
+    "@fortawesome/react-fontawesome": "^3.3.1",
+    "aws-sdk": "^2.1693.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.4.2",
+    "firebase": "^10.12.0",
+    "firebase-admin": "^14.0.0",
+    "googleapis": "^173.0.0",
+    "hls.js": "^1.6.16",
+    "mongoose": "^9.3.0",
+    "next": "14.2.35",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-qr-code": "^2.0.21"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.0.1",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1"
+  }
+}

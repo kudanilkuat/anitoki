@@ -1,0 +1,187 @@
+/* Google Fonts sudah dimuat via <link> di layout.jsx — @import dihapus agar tidak render-blocking */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-bebas: 'Bebas Neue', sans-serif;
+  --font-nunito: 'Nunito', sans-serif;
+}
+
+/* --- RESET & BASE --- */
+* {
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  /* Biarkan kosong. Jangan tambah scroll-behavior: smooth disini */
+}
+
+body {
+  background-color: #080c14;
+  color: #f0f4ff;
+  font-family: var(--font-nunito), sans-serif;
+  /* overflow-x: hidden mencegah horizontal scroll yang tidak perlu, 
+     tapi jika warning Next.js muncul lagi, hapus baris ini */
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- UTILITIES --- */
+
+/* Custom Scrollbar (Webkit) */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0d1220;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e2d45;
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3b82f6;
+}
+
+/* Safe Area for Mobile */
+.pb-safe {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+}
+
+/* Line Clamp */
+.line-clamp-1 {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* --- COMPONENTS --- */
+
+/* Reader Image */
+.reader-image {
+  width: 100%;
+  max-width: 800px;
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Skeleton Loader */
+@keyframes shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #111827 25%, #1a2235 50%, #111827 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* Genre Badge */
+.genre-badge {
+  @apply text-xs font-semibold px-2.5 py-1 rounded-full bg-bg-elevated text-text-secondary border border-border transition-colors duration-200;
+}
+
+.genre-badge:hover {
+  @apply bg-accent-red text-white border-accent-red;
+}
+
+/* Chapter List Item */
+.chapter-item {
+  @apply flex items-center justify-between p-3 rounded-xl bg-bg-elevated border border-border hover:border-accent-red transition-all duration-200 cursor-pointer;
+}
+
+/* --- CUSTOM RANGE SLIDER --- */
+
+input[type=range] {
+  -webkit-appearance: none;
+  width: 100%;
+  background: transparent;
+}
+
+input[type=range]:focus {
+  outline: none;
+}
+
+/* Chrome, Safari, Edge, Opera */
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  margin-top: -6px;
+  /* (Track height / 2) - (Thumb height / 2) */
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+input[type=range]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 4px;
+  cursor: pointer;
+  background: #374151;
+  border-radius: 2px;
+}
+
+/* Firefox Support (Penting agar slider muncul di Firefox) */
+input[type=range]::-moz-range-thumb {
+  height: 16px;
+  width: 16px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #3b82f6;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+input[type=range]::-moz-range-track {
+  width: 100%;
+  height: 4px;
+  cursor: pointer;
+  background: #374151;
+  border-radius: 2px;
+}
+
+/* Loading Bar Animation (Reader) */
+@keyframes loading-bar {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(100%); }
+  100% { transform: translateX(-100%); }
+}
+
+.animate-loading-bar {
+  animation: loading-bar 1.8s ease-in-out infinite;
+}
