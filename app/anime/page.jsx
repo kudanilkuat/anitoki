@@ -19,6 +19,7 @@ export async function generateMetadata({ searchParams }) {
     else if (type) title = `${type} Terbaru`;
     else if (status === 'Ongoing' || status === 'ongoing') title = 'Anime Ongoing';
     else if (status === 'Completed' || status === 'completed') title = 'Anime Completed';
+    else if (status) title = `Anime ${status}`;
     else if (order === 'popular') title = 'Anime Terpopuler';
     else if (order === 'oldest') title = 'Anime Terlama';
     else if (order === 'az') title = 'Anime A-Z';
@@ -54,6 +55,8 @@ export default async function BrowsePage({ searchParams }) {
 
     const categories = categoryRes?.data || { genres: [] };
     const genres = Array.isArray(categories) ? categories : (categories.genres || []);
+    const types = Array.isArray(categories.types) ? categories.types : [];
+    const statuses = Array.isArray(categories.statuses) ? categories.statuses : [];
 
     return (
         <div className="min-h-screen bg-[#0a0a0f] text-gray-200">
@@ -68,6 +71,8 @@ export default async function BrowsePage({ searchParams }) {
                         initialPagination={pagination}
                         initialFilters={filters}
                         genres={genres}
+                        types={types}
+                        statuses={statuses}
                     />
                 </Suspense>
             </main>

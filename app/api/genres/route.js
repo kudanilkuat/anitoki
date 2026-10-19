@@ -24,12 +24,32 @@ export async function GET(request) {
             ? { genres: { $ne: '' } }
             : { type: { $ne: 'Hentai' }, genres: { $ne: '' } };
 
-        const genres = await Anime.aggregate([
-            { $match: matchCondition },
-            { $unwind: '$genres' },
-            { $match: { genres: { $ne: '' } } },
-            { $group: { _id: '$genres', count: { $sum: 1 } } },
-            { $sort: { _id: 1 } }
+        const typeCondition = includeAdult
+            ? { type: { $nin: [null, ''] } }
+            : { type: { $nin: [null, '', 'Hentai', 'hentai'] } };
+
+        const statusCondition = includeAdult
+            ? { status: { $nin: [null, ''] } }
+            : { type: { $nin: ['Hentai', 'hentai'] }, status: { $nin: [null, ''] } };
+
+        const [genres, types, statuses] = await Promise.all([
+            Anime.aggregate([
+                { $match: matchCondition },
+                { $unwind: '$genres' },
+                { $match: { genres: { $nin: [null, ''] } } },
+                { $group: { _id: '$genres', count: { $sum: 1 } } },
+                { $sort: { _id: 1 } }
+            ]),
+            Anime.aggregate([
+                { $match: typeCondition },
+                { $group: { _id: '$type', count: { $sum: 1 } } },
+                { $sort: { count: -1, _id: 1 } }
+            ]),
+            Anime.aggregate([
+                { $match: statusCondition },
+                { $group: { _id: '$status', count: { $sum: 1 } } },
+                { $sort: { count: -1, _id: 1 } }
+            ])
         ]);
 
         // Filter explicit keywords from the returned list if not includeAdult
@@ -37,10 +57,30 @@ export async function GET(request) {
             ? genres
             : genres.filter(g => !EXCLUDED_GENRES.has((g._id || '').toLowerCase()));
 
+        const filteredTypes = types
+            .filter(t => t._id && typeof t._id === 'string' && t._id.trim() !== '')
+            .map(t => ({
+                name: t._id.trim(),
+                value: t._id.trim(),
+                label: t._id.trim(),
+                count: t.count
+            }));
+
+        const filteredStatuses = statuses
+            .filter(s => s._id && typeof s._id === 'string' && s._id.trim() !== '')
+            .map(s => ({
+                name: s._id.trim(),
+                value: s._id.trim(),
+                label: s._id.trim(),
+                count: s.count
+            }));
+
         return NextResponse.json({
             success: true,
             data: {
                 genres: filteredGenres.map(g => ({ name: g._id, count: g.count })),
+                types: filteredTypes,
+                statuses: filteredStatuses,
                 themes: [],
                 demographics: []
             }

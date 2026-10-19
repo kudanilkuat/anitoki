@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -182,18 +182,17 @@ function AnimeListCard({ anime }) {
 }
 
 // ─── Filter Panel ─────────────────────────────────────────────────────────────
-const TYPES = [
-    { value: '', label: 'Semua Tipe' },
+const DEFAULT_TYPES = [
     { value: 'TV', label: 'TV' },
+    { value: 'ONA', label: 'ONA' },
     { value: 'OVA', label: 'OVA' },
     { value: 'Movie', label: 'Movie' },
     { value: 'Special', label: 'Special' },
 ];
 
-const STATUSES = [
-    { value: '', label: 'Semua Status' },
-    { value: 'Ongoing', label: 'Ongoing' },
+const DEFAULT_STATUSES = [
     { value: 'Completed', label: 'Completed' },
+    { value: 'Ongoing', label: 'Ongoing' },
 ];
 
 const ORDERS = [
@@ -210,6 +209,8 @@ export default function AnimeBrowseClient({
     initialPagination = {},
     initialFilters = {},
     genres = [],
+    types = [],
+    statuses = [],
 }) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -219,6 +220,45 @@ export default function AnimeBrowseClient({
     const [loading, setLoading] = useState(false);
     const [viewMode, setViewMode] = useState('grid');
     const [filterOpen, setFilterOpen] = useState(false);
+
+    const [dbTypes, setDbTypes] = useState(types);
+    const [dbStatuses, setDbStatuses] = useState(statuses);
+    const [dbGenres, setDbGenres] = useState(genres);
+
+    useEffect(() => {
+        if (types.length) setDbTypes(types);
+        if (statuses.length) setDbStatuses(statuses);
+        if (genres.length) setDbGenres(genres);
+    }, [types, statuses, genres]);
+
+    useEffect(() => {
+        if (!dbTypes.length || !dbStatuses.length || !dbGenres.length) {
+            fetch('/api/genres')
+                .then(r => r.json())
+                .then(data => {
+                    if (data?.success && data?.data) {
+                        if (!dbTypes.length && data.data.types?.length) setDbTypes(data.data.types);
+                        if (!dbStatuses.length && data.data.statuses?.length) setDbStatuses(data.data.statuses);
+                        if (!dbGenres.length && data.data.genres?.length) setDbGenres(data.data.genres);
+                    }
+                })
+                .catch(err => console.error('Gagal fetch filters:', err));
+        }
+    }, [dbTypes.length, dbStatuses.length, dbGenres.length]);
+
+    const typeOptions = useMemo(() => {
+        if (dbTypes && dbTypes.length > 0) {
+            return dbTypes.map(t => typeof t === 'string' ? { value: t, label: t } : { value: t.value || t.name, label: t.label || t.name || t.value });
+        }
+        return DEFAULT_TYPES;
+    }, [dbTypes]);
+
+    const statusOptions = useMemo(() => {
+        if (dbStatuses && dbStatuses.length > 0) {
+            return dbStatuses.map(s => typeof s === 'string' ? { value: s, label: s } : { value: s.value || s.name, label: s.label || s.name || s.value });
+        }
+        return DEFAULT_STATUSES;
+    }, [dbStatuses]);
 
     const [filters, setFilters] = useState({
         type: initialFilters.type || '',
@@ -497,7 +537,9 @@ export default function AnimeBrowseClient({
             {filterOpen && (
                 <FilterDrawer
                     filters={filters}
-                    genres={genres}
+                    genres={dbGenres}
+                    types={typeOptions}
+                    statuses={statusOptions}
                     onApply={(newFilters) => applyFilters(newFilters)}
                     onClose={() => setFilterOpen(false)}
                 />
@@ -521,7 +563,7 @@ function FilterPill({ label, onRemove }) {
 }
 
 // ─── Filter Drawer ────────────────────────────────────────────────────────────
-function FilterDrawer({ filters, genres, onApply, onClose }) {
+function FilterDrawer({ filters, genres, types = [], statuses = [], onApply, onClose }) {
     const [local, setLocal] = useState({ ...filters });
 
     const set = (key, value) => setLocal(prev => ({ ...prev, [key]: value }));
@@ -574,9 +616,20 @@ function FilterDrawer({ filters, genres, onApply, onClose }) {
                     <div>
                         <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest mb-2">Status</p>
                         <div className="flex flex-wrap gap-2">
-                            {STATUSES.map(s => (
-                                <ChipBtn key={s.value} label={s.label} isActive={local.status === s.value} onClick={() => set('status', s.value)} />
-                            ))}
+                            <ChipBtn label="Semua Status" isActive={!local.status} onClick={() => set('status', '')} />
+                            {statuses.map(s => {
+                                const val = s.value;
+                                const lbl = s.label;
+                                const isActive = local.status ? local.status.toLowerCase() === val.toLowerCase() : false;
+                                return (
+                                    <ChipBtn
+                                        key={val}
+                                        label={lbl}
+                                        isActive={isActive}
+                                        onClick={() => set('status', val)}
+                                    />
+                                );
+                            })}
                         </div>
                     </div>
 
@@ -584,9 +637,20 @@ function FilterDrawer({ filters, genres, onApply, onClose }) {
                     <div>
                         <p className="text-[11px] font-black text-on-surface-variant uppercase tracking-widest mb-2">Tipe</p>
                         <div className="flex flex-wrap gap-2">
-                            {TYPES.map(t => (
-                                <ChipBtn key={t.value} label={t.label} isActive={local.type === t.value} onClick={() => set('type', t.value)} />
-                            ))}
+                            <ChipBtn label="Semua Tipe" isActive={!local.type} onClick={() => set('type', '')} />
+                            {types.map(t => {
+                                const val = t.value;
+                                const lbl = t.label;
+                                const isActive = local.type ? local.type.toLowerCase() === val.toLowerCase() : false;
+                                return (
+                                    <ChipBtn
+                                        key={val}
+                                        label={lbl}
+                                        isActive={isActive}
+                                        onClick={() => set('type', val)}
+                                    />
+                                );
+                            })}
                         </div>
                     </div>
 

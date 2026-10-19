@@ -4,8 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faFilter, faTimes, faUndoAlt, faSearch } from '@fortawesome/free-solid-svg-icons';
 
-const TYPES = [
-    { value: '', label: 'All Types' },
+const DEFAULT_TYPES = [
     { value: 'TV', label: 'TV' },
     { value: 'Movie', label: 'Movie' },
     { value: 'OVA', label: 'OVA' },
@@ -13,8 +12,7 @@ const TYPES = [
     { value: 'Special', label: 'Special' },
 ];
 
-const STATUSES = [
-    { value: '', label: 'All Statuses' },
+const DEFAULT_STATUSES = [
     { value: 'Ongoing', label: 'Ongoing' },
     { value: 'Completed', label: 'Completed' },
 ];
@@ -38,6 +36,8 @@ export default function AdvanceSearch({ onClose }) {
     });
 
     const [genres, setGenres] = useState([]);
+    const [types, setTypes] = useState([]);
+    const [statuses, setStatuses] = useState([]);
 
     useEffect(() => {
         fetch('/api/genres')
@@ -46,10 +46,24 @@ export default function AdvanceSearch({ onClose }) {
                 if (data.success) {
                     const genresData = Array.isArray(data.data) ? data.data : data.data?.genres || [];
                     setGenres(genresData);
+                    if (Array.isArray(data.data?.types) && data.data.types.length > 0) {
+                        setTypes(data.data.types);
+                    }
+                    if (Array.isArray(data.data?.statuses) && data.data.statuses.length > 0) {
+                        setStatuses(data.data.statuses);
+                    }
                 }
             })
-            .catch(err => console.error('Gagal fetch genres:', err));
+            .catch(err => console.error('Gagal fetch genres & filters:', err));
     }, []);
+
+    const typeOptions = types.length > 0
+        ? types.map(t => typeof t === 'string' ? { value: t, label: t } : { value: t.value || t.name, label: t.label || t.name || t.value })
+        : DEFAULT_TYPES;
+
+    const statusOptions = statuses.length > 0
+        ? statuses.map(s => typeof s === 'string' ? { value: s, label: s } : { value: s.value || s.name, label: s.label || s.name || s.value })
+        : DEFAULT_STATUSES;
 
     const handleSelect = (key, value) => {
         setLocalFilter(prev => ({ ...prev, [key]: value }));
@@ -113,7 +127,8 @@ export default function AdvanceSearch({ onClose }) {
                         <label className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">Status</label>
                         <div className="relative">
                             <select value={localFilter.status} onChange={e => handleSelect('status', e.target.value)} className={selectClass}>
-                                {STATUSES.map(s => (
+                                <option value="">All Statuses</option>
+                                {statusOptions.map(s => (
                                     <option key={s.value} value={s.value}>{s.label}</option>
                                 ))}
                             </select>
@@ -126,7 +141,8 @@ export default function AdvanceSearch({ onClose }) {
                         <label className="text-[9px] font-bold text-on-surface-variant uppercase tracking-widest">Type</label>
                         <div className="relative">
                             <select value={localFilter.type} onChange={e => handleSelect('type', e.target.value)} className={selectClass}>
-                                {TYPES.map(t => (
+                                <option value="">All Types</option>
+                                {typeOptions.map(t => (
                                     <option key={t.value} value={t.value}>{t.label}</option>
                                 ))}
                             </select>
