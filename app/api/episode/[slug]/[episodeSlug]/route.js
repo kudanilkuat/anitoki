@@ -13,7 +13,7 @@ export async function GET(request, { params }) {
 
         const [anime, episode] = await Promise.all([
             Anime.findOne({ slug })
-                .select('title slug coverImage synopsis genres type status rating studio totalEpisode episodes')
+                .select('title slug coverImage bannerImage synopsis genres type status rating studio totalEpisode episodes englishTitle nativeTitle anilistId malId')
                 .lean(),
             Episode.findOne({ animeSlug: slug, episodeSlug })
                 .select('title servers downloads prevSlug nextSlug createdAt episodeIndex')

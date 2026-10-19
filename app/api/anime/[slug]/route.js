@@ -11,6 +11,7 @@ const formatAnimeList = (animes) => {
             title: m.title,
             slug: m.slug,
             coverImage: m.coverImage,
+            bannerImage: m.bannerImage || '',
             type: m.type,
             status: m.status,
             rating: m.rating,
@@ -31,7 +32,7 @@ const findAnimeList = async (matchQuery, sortOption, skip, limit) => {
         { $limit: limit },
         {
             $project: {
-                title: 1, slug: 1, coverImage: 1, type: 1, status: 1,
+                title: 1, slug: 1, coverImage: 1, bannerImage: 1, type: 1, status: 1,
                 rating: 1, views: 1, lastUpdated: 1,
                 episode_count: { $size: { $ifNull: ['$episodes', []] } },
                 episodes: { $slice: ['$episodes', -1] }
@@ -51,10 +52,11 @@ export async function GET(request, { params }) {
             {
                 returnDocument: 'after',
                 projection: {
-                    title: 1, slug: 1, coverImage: 1, type: 1, status: 1,
-                    rating: 1, views: 1, lastUpdated: 1, synopsis: 1,
-                    genres: 1, nativeTitle: 1, airDate: 1, producer: 1,
-                    studio: 1, duration: 1, totalEpisode: 1,
+                    title: 1, slug: 1, coverImage: 1, bannerImage: 1, type: 1, status: 1,
+                    rating: 1, views: 1, lastUpdated: 1, synopsis: 1, synopsisEn: 1,
+                    genres: 1, nativeTitle: 1, englishTitle: 1, romajiTitle: 1,
+                    airDate: 1, producer: 1, studio: 1, duration: 1, totalEpisode: 1,
+                    season: 1, seasonYear: 1, anilistId: 1, malId: 1,
                     'episodes.title': 1,
                     'episodes.slug': 1,
                     'episodes.airDate': 1,
@@ -76,7 +78,7 @@ export async function GET(request, { params }) {
                 { $sample: { size: 10 } },
                 {
                     $project: {
-                        title: 1, slug: 1, coverImage: 1, type: 1, status: 1,
+                        title: 1, slug: 1, coverImage: 1, bannerImage: 1, type: 1, status: 1,
                         rating: 1, views: 1, lastUpdated: 1,
                         episode_count: { $size: { $ifNull: ['$episodes', []] } },
                         episodes: { $slice: ['$episodes', -1] }

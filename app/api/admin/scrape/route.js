@@ -1,10 +1,54 @@
 import { NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
+import { findBestAniListMatch, mapAniListToAnime } from '@/lib/anilist';
 
 function ensureAdmin(request) {
     const adminUid = request.headers.get('x-admin-uid');
     if (!adminUid) return false;
     return true; // Simplified for this example, replace with your actual auth logic
+}
+
+function cleanEpisodeTitle(rawTitle, animeTitle = '') {
+    if (!rawTitle) return '';
+    let text = rawTitle
+        .replace(/\[\s*NEW\s+Release\s*\]/gi, '')
+        .replace(/\[\s*4K\s*\]/gi, '')
+        .replace(/\s*(?:Subtitle\s+Indonesia|Sub\s+Indo).*$/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // 1. OVA (e.g. "Mangaka-san to Assistant-san to OVA 6" -> "OVA 6", "Episode OVA 01" -> "OVA 01", "11eyes OVA" -> "OVA")
+    const ovaMatch = text.match(/(?:Episode\s+)?\b(OVA(?:\s+\d+)?(?:\s*\([^)]+\))?)\b/i);
+    if (ovaMatch) return ovaMatch[1].trim();
+
+    // 2. Standard Episode: Episode 1, Episode 12 (End), etc.
+    const epMatch = text.match(/\bEpisode\s+\d+(?:\s*\([^)]+\))?/i);
+    if (epMatch) return epMatch[0].trim();
+
+    // 3. Special / SP
+    const spMatch = text.match(/\b(?:Special|SP)(?:\s+\d+)?(?:\s*\([^)]+\))?/i);
+    if (spMatch) return spMatch[0].trim();
+
+    // 4. ONA
+    const onaMatch = text.match(/\bONA(?:\s+\d+)?(?:\s*\([^)]+\))?/i);
+    if (onaMatch) return onaMatch[0].trim();
+
+    // 5. Movie
+    const movieMatch = text.match(/\bMovie(?:\s*:\s*.+)?$/i);
+    if (movieMatch) return movieMatch[0].trim();
+
+    // If the stripped text is identical to the anime title, don't treat trailing number of anime as episode number
+    if (animeTitle && text.toLowerCase() === animeTitle.toLowerCase().trim()) {
+        return text;
+    }
+
+    // 6. Ending in number, e.g. "Danshi Koukousei no Nichijou 12 (End)" -> "Episode 12 (End)"
+    const trailingNumMatch = text.match(/\s+(\d+(?:\s*\([^)]+\))?)$/);
+    if (trailingNumMatch) {
+        return 'Episode ' + trailingNumMatch[1].trim();
+    }
+
+    return text;
 }
 
 export async function POST(request) {
@@ -45,6 +89,9 @@ export async function POST(request) {
             synopsis: '',
             genres: [],
             episodes: [],
+            datePublished: null,
+            dateModified: null,
+            sourceUrl: url,
             // episode doc fields
             episodeTitle: '',
             servers: []
@@ -52,6 +99,20 @@ export async function POST(request) {
 
         // ─── OTAKUDESU ───
         if (isOtakudesu) {
+            // Extract Yoast schema dates
+            $('script.yoast-schema-graph, script[type="application/ld+json"]').each((_, el) => {
+                try {
+                    const json = JSON.parse($(el).text());
+                    const graph = json['@graph'] || (Array.isArray(json) ? json : [json]);
+                    for (const node of graph) {
+                        if (node.datePublished && !data.datePublished) data.datePublished = node.datePublished;
+                        if (node.dateModified && !data.dateModified) data.dateModified = node.dateModified;
+                    }
+                } catch (_) {}
+            });
+            if (!data.datePublished) data.datePublished = $('meta[property="article:published_time"]').attr('content') || null;
+            if (!data.dateModified) data.dateModified = $('meta[property="article:modified_time"]').attr('content') || null;
+
             // Title dari h1 (strip child span yg isi view count)
             const rawTitle = $('.jdlrx h1').clone().children('span').remove().end().text().trim();
             data.title = rawTitle;
@@ -99,8 +160,8 @@ export async function POST(request) {
                 const monkTitle = $(el).find('.monktit').text().toLowerCase();
                 if (!monkTitle.includes('episode list')) return;
                 $(el).find('ul li').each((j, li) => {
-                    const a = $(li).find('span:first-child a');
-                    const epTitle = a.text().trim();
+                    const rawTitle = a.text().trim();
+                    const epTitle = cleanEpisodeTitle(rawTitle, data.title);
                     const epUrl = a.attr('href') || '';
                     const epDate = $(li).find('.zeebr').text().trim();
                     // slug = segment terakhir URL
@@ -118,6 +179,28 @@ export async function POST(request) {
             // otakudesu: newest first → reverse agar ep 1 di index 0
             data.episodes.reverse();
 
+            // Enrich with AniList GraphQL metadata
+            try {
+                const anilistMatch = await findBestAniListMatch({
+                    title: data.title,
+                    nativeTitle: data.nativeTitle,
+                });
+                if (anilistMatch) {
+                    const enriched = mapAniListToAnime(anilistMatch, data, {
+                        preserveIndonesianSynopsis: true,
+                        overwriteCover: false,
+                    });
+                    data = { ...data, ...enriched };
+                    data.anilistMatch = {
+                        id: anilistMatch.id,
+                        title: anilistMatch.title,
+                        averageScore: anilistMatch.averageScore,
+                    };
+                }
+            } catch (err) {
+                console.warn('[Scrape] AniList enrich warning:', err.message);
+            }
+
             return NextResponse.json({ success: true, type: 'anime', data });
         }
 
@@ -125,7 +208,11 @@ export async function POST(request) {
         if (isNekopoi) {
             // EPISODE URL
             if ($('.nk-player-frame').length > 0) {
-                data.episodeTitle = $('h1').first().text().trim().replace(/\[NEW Release\] /i, '');
+                data.episodeTitle = $('h1').first().text().trim()
+                    .replace(/\[\s*NEW\s+Release\s*\]/gi, '')
+                    .replace(/\[\s*4K\s*\]/gi, '')
+                    .replace(/\s+/g, ' ')
+                    .trim();
 
                 const dateText = $('.nk-post-header-meta span').eq(1).text();
                 if (dateText) {
@@ -163,12 +250,16 @@ export async function POST(request) {
             });
             if (synopsisText) data.synopsis = synopsisText.trim();
 
+            const ogImage = $('meta[property="og:image"]').attr('content');
             const coverStyle = $('.nk-series-poster').attr('style');
+            let rawCover = '';
             if (coverStyle) {
                 const match = coverStyle.match(/url\(['"']?(.*?)['"']?\)/);
-                if (match && match[1]) {
-                    data.coverImage = match[1].replace('-210x300', '');
-                }
+                if (match && match[1]) rawCover = match[1];
+            }
+            if (!rawCover && ogImage) rawCover = ogImage;
+            if (rawCover) {
+                data.coverImage = rawCover.replace(/-\d+x\d+(\.[a-zA-Z0-9]+)$/i, '$1');
             }
 
             $('.nk-series-meta-list ul li').each((i, el) => {
@@ -206,9 +297,15 @@ export async function POST(request) {
                 }
 
                 if (epTitle) {
+                    const cleanEpTitle = epTitle
+                        .replace(/\[\s*NEW\s+Release\s*\]/gi, '')
+                        .replace(/\[\s*4K\s*\]/gi, '')
+                        .replace(/\s+/g, ' ')
+                        .trim();
+
                     data.episodes.push({
                         title: epName,
-                        fullTitle: epTitle,
+                        fullTitle: cleanEpTitle,
                         airDate: epDate,
                         sourceUrl: epUrl
                     });

@@ -25,6 +25,7 @@ const formatAnimeList = (animes) => {
             title: m.title,
             slug: m.slug,
             coverImage: m.coverImage,
+            bannerImage: m.bannerImage || '',
             type: m.type,
             status: m.status,
             rating: m.rating,
@@ -46,7 +47,7 @@ const findAnimeList = async (matchQuery, sortOption, skip, limit) => {
         { $limit: limit },
         {
             $project: {
-                title: 1, slug: 1, coverImage: 1, type: 1, status: 1,
+                title: 1, slug: 1, coverImage: 1, bannerImage: 1, type: 1, status: 1,
                 rating: 1, views: 1, lastUpdated: 1,
                 episode_count: { $size: { $ifNull: ['$episodes', []] } },
                 episodes: { $slice: ['$episodes', -3] }

@@ -35,7 +35,7 @@ export default async function HomePage() {
 
         {/* Top Links Bar (Social Media & Download App) */}
         <div className="flex overflow-x-auto snap-x scrollbar-hide gap-3 md:gap-4 pb-2 mb-8 mt-6">
-          {/* <a href={process.env.NEXT_PUBLIC_TELEGRAM_URL || "#"} target="_blank" rel="noopener noreferrer" aria-label="Join Telegram" className="snap-start shrink-0 w-[140px] sm:w-[160px] md:flex-1 flex items-center justify-start gap-3 bg-[#111319] border border-white/5 hover:bg-[#1a1c23] px-4 md:px-5 py-3 rounded-xl text-xs md:text-sm font-bold text-white transition-colors">
+          <a href={process.env.NEXT_PUBLIC_TELEGRAM_URL || "#"} target="_blank" rel="noopener noreferrer" aria-label="Join Telegram" className="snap-start shrink-0 w-[140px] sm:w-[160px] md:flex-1 flex items-center justify-start gap-3 bg-[#111319] border border-white/5 hover:bg-[#1a1c23] px-4 md:px-5 py-3 rounded-xl text-xs md:text-sm font-bold text-white transition-colors">
             <div className="w-8 h-8 rounded-full bg-[#229ED9] flex items-center justify-center text-white shrink-0">
               <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.892-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z" /></svg>
             </div>
@@ -58,7 +58,7 @@ export default async function HomePage() {
               <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4"><path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm0 18.5c-4.694 0-8.5-3.806-8.5-8.5S7.306 3.5 12 3.5s8.5 3.806 8.5 8.5-3.806 8.5-8.5 8.5zm4.326-9.584a4.846 4.846 0 01-1.55 3.328 5.485 5.485 0 01-3.616 1.22c-2.865 0-4.832-1.92-4.832-4.632 0-2.716 1.967-4.632 4.832-4.632 2.831 0 4.798 1.865 4.798 4.496v.147h-7.666c.097 1.636 1.246 2.766 2.836 2.766 1.228 0 2.023-.624 2.38-1.517l1.818.824zm-2.868-2.616c-.055-1.428-1.047-2.52-2.73-2.52-1.636 0-2.673 1.085-2.766 2.52h5.496z" /></svg>
             </div>
             Threads
-          </a> */}
+          </a>
         </div>
 
         <TrendingSlider trending={trending} />
@@ -68,20 +68,6 @@ export default async function HomePage() {
         <NewestUpdatesTabs recents={recents} ongoing={ongoing} completed={completed} />
 
         <AdBanner slot="IN_CONTENT" className="my-6" />
-
-        <footer className="pt-8 pb-24 md:pb-8 border-t border-border-subtle/40 mt-12 flex flex-col items-center w-full max-w-[1400px] mx-auto relative z-10">
-          <div className="flex flex-wrap justify-center gap-4 sm:gap-6 mb-4 px-4">
-            <a href="/privacy-policy" className="text-[13px] sm:text-sm font-semibold text-primary-stitch hover:text-on-surface transition-colors">
-              Privacy Policy
-            </a>
-            <a href="/terms" className="text-[13px] sm:text-sm font-semibold text-primary-stitch hover:text-on-surface transition-colors">
-              Terms of Service
-            </a>
-          </div>
-          <p className="text-center text-on-surface-variant/50 text-[11px] sm:text-xs">
-            © 2026 {process.env.NEXT_PUBLIC_SITE_NAME || 'AnimeStream'} · All rights reserved.
-          </p>
-        </footer>
       </main>
     </div>
   );

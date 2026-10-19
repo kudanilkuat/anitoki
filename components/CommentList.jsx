@@ -4,8 +4,49 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { calcUserLevel, getUserShortId } from '@/lib/profile';
 import { useAuth } from '@/context/AuthContext';
-const SITE_NAME_ENV = process.env.NEXT_PUBLIC_SITE_NAME || 'Komikcast';
+const SITE_NAME_ENV = process.env.NEXT_PUBLIC_SITE_NAME || 'Anitoki';
 
+function SpoilerText({ text }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <span
+      onClick={() => setRevealed(!revealed)}
+      title="Klik untuk membuka/menutup spoiler"
+      className={`cursor-pointer px-1.5 py-0.5 rounded text-xs transition-all duration-200 inline-block my-0.5 ${
+        revealed
+          ? 'bg-primary-container/20 text-on-surface border border-primary-container/40'
+          : 'bg-surface-bright text-transparent hover:text-on-surface/20 select-none blur-[4px] hover:blur-[2px] border border-border-subtle/40'
+      }`}
+    >
+      {text}
+    </span>
+  );
+}
+
+function renderCommentContent(text = '') {
+  if (!text) return '';
+  const parts = [];
+  const regex = /(\[spoiler\][\s\S]*?\[\/spoiler\]|\|\|[\s\S]*?\|\|)/gi;
+  let lastIdx = 0;
+  let match;
+
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIdx) {
+      parts.push(text.substring(lastIdx, match.index));
+    }
+    const raw = match[0];
+    const inner = raw.startsWith('[spoiler]')
+      ? raw.slice(9, -10)
+      : raw.slice(2, -2);
+    parts.push(<SpoilerText key={`sp-${match.index}`} text={inner} />);
+    lastIdx = match.index + raw.length;
+  }
+  if (lastIdx < text.length) {
+    parts.push(text.substring(lastIdx));
+  }
+
+  return parts.length ? parts : text;
+}
 
 function timeAgo(dateParam) {
   if (!dateParam) return '';
@@ -89,10 +130,18 @@ function CommentItem({ comment }) {
           <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
             <span className="text-on-surface-variant text-[10px] font-semibold">Lvl. {calcUserLevel(user?.totalReadingMinutes || 0)}</span>
             <RoleBadge />
+            {comment.status === 'pending' && (
+              <span className="px-2 py-0.5 rounded-full border border-status-pending/50 text-status-pending font-bold text-[10px] bg-status-pending/10 flex items-center gap-1">
+                <span className="material-symbols-outlined" style={{ fontSize: 10 }}>hourglass_top</span>
+                Menunggu Moderasi
+              </span>
+            )}
             <span className="text-border-subtle text-[10px] font-mono">{getUserShortId(user?.id)}</span>
           </div>
 
-          <p className="text-sm text-on-surface/90 leading-relaxed break-words whitespace-pre-wrap">{text}</p>
+          <div className="text-sm text-on-surface/90 leading-relaxed break-words whitespace-pre-wrap">
+            {renderCommentContent(text)}
+          </div>
 
           <div className="mt-3 flex items-center gap-3">
             <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-surface-variant/50 text-on-surface-variant hover:bg-primary-stitch/10 hover:text-primary-stitch transition-colors text-xs font-semibold">
@@ -111,7 +160,8 @@ export default function CommentList({ slug, initialComments = [] }) {
   const [comments, setComments] = useState(initialComments);
   const [newComment, setNewComment] = useState('');
   const [showFab, setShowFab] = useState(false);
-  const [showRules, setShowRules] = useState(false);
+  const [showRules, setShowRules] = useState(true);
+  const [pendingNotice, setPendingNotice] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [page, setPage] = useState(1);
@@ -166,11 +216,13 @@ export default function CommentList({ slug, initialComments = [] }) {
         totalReadingMinutes: user.stats?.totalReadingMinutes || 0,
       },
       text: newComment.trim(),
+      status: user.isAdmin ? 'approved' : 'pending',
       createdAt: new Date().toISOString(),
     };
     setComments(prev => [optimistic, ...prev]);
     setTotalItems(prev => prev + 1);
     setNewComment('');
+    if (!user.isAdmin) setPendingNotice(true);
     try {
       const res = await fetch('/api/comments', {
         method: 'POST',
@@ -189,6 +241,9 @@ export default function CommentList({ slug, initialComments = [] }) {
       const json = await res.json();
       if (json.success) {
         setComments(prev => prev.map(c => c.id === optimistic.id ? json.data : c));
+        if (json.data.status === 'pending') {
+          setPendingNotice(true);
+        }
       } else {
         setComments(prev => prev.filter(c => c.id !== optimistic.id));
         setTotalItems(prev => prev - 1);
@@ -236,34 +291,50 @@ export default function CommentList({ slug, initialComments = [] }) {
 
       {/* Rules panel */}
       {showRules && (
-        <div className="mb-4 rounded-xl border border-status-pending/30 bg-status-pending/5 overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-2 bg-status-pending/10 border-b border-status-pending/20">
-            <span className="material-symbols-outlined text-status-pending" style={{ fontSize: 16 }}>warning</span>
-            <span className="font-display text-[11px] font-bold text-status-pending tracking-wide">Rules Komentar {SITE_NAME_ENV}</span>
+        <div className="mb-5 rounded-2xl border border-red-500/30 bg-red-950/15 backdrop-blur-sm overflow-hidden shadow-lg shadow-black/30">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-red-500/20 border-b border-red-500/30">
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-red-400 text-sm">gavel</span>
+              <span className="font-display text-xs font-black text-red-400 tracking-wider uppercase">Rules Komentar {SITE_NAME_ENV}</span>
+            </div>
+            <button
+              onClick={() => setShowRules(false)}
+              className="text-red-400/80 hover:text-red-200 text-xs font-bold px-1.5 py-0.5 rounded hover:bg-red-500/20 transition-colors"
+            >
+              ✕ Tutup
+            </button>
           </div>
-          <div className="px-3 py-2.5 space-y-2 text-[11px]">
+          <div className="p-4 space-y-2.5 text-xs">
             {[
-              { icon: '🚫', text: <><span className="text-status-expired font-bold">Dilarang Toxic, Rasis, atau menimbulkan kerusuhan!</span> Yang ikut kerusuhan bakal <span className="text-status-expired font-bold">kena ban juga!</span></> },
-              { icon: '🐱', text: <span className="text-status-expired font-bold">Dilarang pakai photo profil cabul!</span> },
-              { icon: '🔞', text: <span className="text-status-expired font-bold">Dilarang mengirim photo atau gif cabul/tidak senonoh!</span> },
-              { icon: '🏛️', text: <span className="text-status-expired font-bold">DILARANG KOMENTAR SOAL POLITIK!!</span> },
-              { icon: '📖', text: <span className="text-on-surface/80">Yang belum tau cara spoiler, tolong gunakan tag spoiler jika perlu.</span> },
-              { icon: '😶', text: <><span className="text-status-expired font-bold">DILARANG SPOILER ENDING!!</span> <span className="text-on-surface/80">Hargai penonton lain.</span></> },
-              { icon: '💬', text: <><span className="text-status-expired font-bold">DILARANG SPAM KOMENTAR!</span> <span className="text-on-surface/80">Yang spam emot tiap episode juga <span className="text-status-expired font-bold">kena ban!</span></span></> },
+              { icon: '🚫', title: 'Dilarang Toxic, Rasis, atau menimbulkan kerusuhan!', desc: 'Yang ikut kerusuhan bakal kena ban juga!' },
+              { icon: '🐱', title: 'Dilarang pakai photo profil cabul!' },
+              { icon: '🔞', title: 'Dilarang mengirim photo atau gif cabul/tidak senonoh!' },
+              { icon: '🏛️', title: 'DILARANG KOMENTAR SOAL POLITIK!!' },
+              { icon: '📖', title: 'Yang belum tau cara spoiler, tolong gunakan tag spoiler jika perlu.', desc: 'Gunakan [spoiler]teks spoiler[/spoiler] atau ||teks spoiler||' },
+              { icon: '😶', title: 'DILARANG SPOILER ENDING!!', desc: 'Hargai penonton lain.' },
+              { icon: '💬', title: 'DILARANG SPAM KOMENTAR!', desc: 'Yang spam emot tiap episode juga kena ban!' },
             ].map((r, i) => (
-              <div key={i} className="flex gap-2">
-                <span className="flex-shrink-0">{r.icon}</span>
-                <p className="leading-relaxed">{r.text}</p>
+              <div key={i} className="flex items-start gap-2.5">
+                <span className="text-base flex-shrink-0 leading-tight">{r.icon}</span>
+                <div className="leading-relaxed">
+                  <span className="font-bold text-red-400">{r.title}</span>{' '}
+                  {r.desc && <span className="text-on-surface/80">{r.desc}</span>}
+                </div>
               </div>
             ))}
-            <div className="border-t border-status-pending/20 pt-2 space-y-1">
-              <div className="flex gap-2">
-                <span className="flex-shrink-0">🔖</span>
-                <p className="text-on-surface/80 leading-relaxed"><span className="text-on-surface font-bold">Noted:</span> Yang melanggar <span className="text-status-expired font-bold">rules di atas akan langsung kena BAN! Tanpa peringatan!</span></p>
+
+            <div className="border-t border-red-500/20 pt-3 space-y-2 mt-2">
+              <div className="flex items-start gap-2.5">
+                <span className="text-base flex-shrink-0">🔖</span>
+                <p className="text-on-surface/90 leading-relaxed">
+                  <span className="text-white font-bold">Noted:</span> Yang melanggar <span className="text-red-400 font-bold">rules di atas akan langsung kena BAN! Tanpa peringatan!</span>
+                </p>
               </div>
-              <div className="flex gap-2">
-                <span className="flex-shrink-0">🔒</span>
-                <p className="text-on-surface/80 leading-relaxed">Akun komentarmu akan <span className="text-status-expired font-bold">dibanned permanen</span> dan <span className="font-bold text-on-surface">tidak bisa balik lagi!!!</span></p>
+              <div className="flex items-start gap-2.5">
+                <span className="text-base flex-shrink-0">🔒</span>
+                <p className="text-on-surface/90 leading-relaxed">
+                  Akun komentarmu akan <span className="text-red-400 font-bold">dibanned permanen</span> dan <span className="font-bold text-white">tidak bisa balik lagi!!!</span>
+                </p>
               </div>
             </div>
           </div>
@@ -272,28 +343,43 @@ export default function CommentList({ slug, initialComments = [] }) {
 
       {/* Comment input */}
       {user ? (
-        <div className="mb-5 bg-surface-elevated border border-border-subtle/50 rounded-xl p-3 flex gap-3">
-          <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-surface-container border border-border-subtle mt-0.5">
-            {user.photoURL ? (
-              <img src={user.photoURL} alt={user.displayName} className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-primary-container/30">
-                <span className="text-on-surface font-bold text-xs">{user.displayName?.[0]?.toUpperCase()}</span>
-              </div>
-            )}
+        <div className="mb-5 bg-surface-elevated border border-border-subtle/50 rounded-xl p-3 flex flex-col gap-2.5 shadow-sm">
+          <div className="flex gap-3">
+            <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 bg-surface-container border border-border-subtle mt-0.5">
+              {user.photoURL ? (
+                <img src={user.photoURL} alt={user.displayName} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-primary-container/30">
+                  <span className="text-on-surface font-bold text-xs">{user.displayName?.[0]?.toUpperCase()}</span>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 flex flex-col gap-2">
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Tulis komentar kamu di sini..."
+                className="w-full bg-surface-container border border-border-subtle/50 rounded-lg px-3 py-2 text-[13px] text-on-surface placeholder-on-surface-variant/50 outline-none focus:border-primary-stitch/60 focus:ring-1 focus:ring-primary-stitch/20 resize-none transition-all"
+                rows={2}
+              />
+            </div>
           </div>
-          <div className="flex-1 flex flex-col gap-2">
-            <textarea
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Tulis komentar kamu di sini..."
-              className="w-full bg-surface-container border border-border-subtle/50 rounded-lg px-3 py-2 text-[13px] text-on-surface placeholder-on-surface-variant/50 outline-none focus:border-primary-stitch/60 focus:ring-1 focus:ring-primary-stitch/20 resize-none transition-all"
-              rows={2}
-            />
+
+          {/* Comment Toolbar */}
+          <div className="flex items-center justify-between pt-1.5 border-t border-border-subtle/20">
+            <button
+              type="button"
+              onClick={() => setNewComment(prev => prev ? `${prev} [spoiler]teks spoiler[/spoiler]` : '[spoiler]teks spoiler[/spoiler]')}
+              className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-surface-container hover:bg-surface-bright text-on-surface-variant hover:text-primary-stitch border border-border-subtle/40 transition-colors flex items-center gap-1.5"
+            >
+              <span>📖</span>
+              <span>Tag Spoiler</span>
+            </button>
+
             <button
               onClick={handleAddComment}
               disabled={!newComment.trim() || sending}
-              className="self-end flex items-center gap-1.5 px-4 py-1.5 bg-primary-container text-on-primary text-xs font-bold rounded-lg hover:brightness-110 disabled:opacity-40 transition-all shadow-sm"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-primary-container text-on-primary text-xs font-bold rounded-lg hover:brightness-110 disabled:opacity-40 transition-all shadow-sm"
             >
               {sending ? (
                 <>
@@ -308,6 +394,22 @@ export default function CommentList({ slug, initialComments = [] }) {
               )}
             </button>
           </div>
+
+          {/* Pending moderation notification notice */}
+          {pendingNotice && (
+            <div className="mt-2 p-2.5 rounded-lg bg-status-pending/10 border border-status-pending/30 text-status-pending text-xs flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm">hourglass_top</span>
+                <span>Komentar berhasil dikirim! Sedang menunggu verifikasi moderator agar bebas spam.</span>
+              </div>
+              <button
+                onClick={() => setPendingNotice(false)}
+                className="text-status-pending hover:text-white text-xs font-bold px-1"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="mb-5 p-4 bg-surface-elevated border border-border-subtle/50 rounded-xl text-center">

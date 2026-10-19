@@ -16,7 +16,7 @@ const TYPES = [
 const STATUSES = [
     { value: '', label: 'All Statuses' },
     { value: 'Ongoing', label: 'Ongoing' },
-    { value: 'End', label: 'Completed' },
+    { value: 'Completed', label: 'Completed' },
 ];
 
 const ORDERS = [

@@ -58,6 +58,7 @@ const buildCreatePayload = (body, slug) => {
         nativeTitle: (body.nativeTitle || '').trim(),
         slug,
         coverImage: (body.coverImage || '').trim(),
+        bannerImage: (body.bannerImage || '').trim() || undefined,
         type: (body.type || 'Anime').trim(),
         rating: toNumber(body.rating, 0),
         views: toNumber(body.views, 0),
@@ -71,7 +72,8 @@ const buildCreatePayload = (body, slug) => {
         sourceUrl: (body.sourceUrl || '').trim() || undefined,
         genres,
         episodes,
-        lastUpdated: new Date(),
+        createdAt: body.createdAt ? new Date(body.createdAt) : (body.datePublished ? new Date(body.datePublished) : new Date()),
+        lastUpdated: body.lastUpdated ? new Date(body.lastUpdated) : (body.dateModified ? new Date(body.dateModified) : (body.datePublished ? new Date(body.datePublished) : new Date())),
     };
 };
 

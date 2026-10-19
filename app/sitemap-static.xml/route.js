@@ -20,10 +20,15 @@ ${urls.map(({ url, lastModified, changeFrequency, priority }) =>
 
 export async function GET() {
     const d = new Date(DEPLOY_DATE);
+    const now = new Date();
     const urls = [
         { url: SITE_URL, lastModified: d, changeFrequency: 'daily', priority: 1.0 },
         { url: `${SITE_URL}/anime`, lastModified: d, changeFrequency: 'daily', priority: 0.9 },
+        { url: `${SITE_URL}/download`, lastModified: now, changeFrequency: 'weekly', priority: 0.9 },
+        { url: `${SITE_URL}/app`, lastModified: now, changeFrequency: 'weekly', priority: 0.8 },
         { url: `${SITE_URL}/genres`, lastModified: d, changeFrequency: 'weekly', priority: 0.7 },
+        { url: `${SITE_URL}/privacy-policy`, lastModified: d, changeFrequency: 'monthly', priority: 0.5 },
+        { url: `${SITE_URL}/terms`, lastModified: d, changeFrequency: 'monthly', priority: 0.5 },
     ];
 
     return new Response(urlset(urls), {

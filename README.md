@@ -21,7 +21,7 @@
 - 💬 **Sistem Komentar & Profil Interaktif** - Diskusi episode, komentar bertingkat, dan personalisasi profil pengguna.
 - 💎 **Sistem VIP & Top-Up Otomatis** - Integrasi pembayaran QRIS instan via WijayaPay & sistem wallet koin.
 - 🔐 **Autentikasi Fleksibel** - Login mudah dan instan menggunakan Telegram Auth dan Google Firebase.
-- 📱 **Mobile & PWA Ready** - Tampilan ramah perangkat mobile (PWA Ready) dengan navigasi sentuh yang mulus.
+- 📱 **Aplikasi Mobile (Flutter)** - Tersedia aplikasi mobile Android & iOS di folder [mobile/](./mobile) terintegrasi langsung dengan API anitoki.id dan login Google Firebase.
 - 🚀 **SEO & Performance Optimized** - Dinamis XML sitemap (`/sitemap.xml`, `/sitemap-anime.xml`), meta tags OpenGraph, dan schema markup.
 
 ---

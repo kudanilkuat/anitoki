@@ -16,28 +16,56 @@ export async function GET(req) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '20', 10);
     const search = searchParams.get('q') || '';
+    const statusFilter = searchParams.get('status') || 'all';
 
-    const query = {};
+    const filterConditions = [];
+
     if (search) {
-      query.$or = [
-        { text: { $regex: search, $options: 'i' } },
-        { displayName: { $regex: search, $options: 'i' } },
-        { slug: { $regex: search, $options: 'i' } },
-      ];
+      filterConditions.push({
+        $or: [
+          { text: { $regex: search, $options: 'i' } },
+          { displayName: { $regex: search, $options: 'i' } },
+          { slug: { $regex: search, $options: 'i' } },
+        ]
+      });
     }
 
-    const totalItems = await Comment.countDocuments(query);
-    const totalPages = Math.ceil(totalItems / limit);
+    if (statusFilter === 'pending') {
+      filterConditions.push({ status: 'pending' });
+    } else if (statusFilter === 'approved') {
+      filterConditions.push({
+        $or: [{ status: 'approved' }, { status: { $exists: false } }]
+      });
+    } else if (statusFilter === 'rejected') {
+      filterConditions.push({ status: 'rejected' });
+    }
 
-    const comments = await Comment.find(query)
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .lean();
+    const query = filterConditions.length > 0 ? { $and: filterConditions } : {};
+
+    const [totalItems, comments, pendingCount, approvedCount, rejectedCount, allCount] = await Promise.all([
+      Comment.countDocuments(query),
+      Comment.find(query)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      Comment.countDocuments({ status: 'pending' }),
+      Comment.countDocuments({ $or: [{ status: 'approved' }, { status: { $exists: false } }] }),
+      Comment.countDocuments({ status: 'rejected' }),
+      Comment.countDocuments({}),
+    ]);
+
+    const totalPages = Math.ceil(totalItems / limit);
 
     return NextResponse.json({
       success: true,
       data: comments,
+      counts: {
+        all: allCount,
+        pending: pendingCount,
+        approved: approvedCount,
+        rejected: rejectedCount,
+      },
       pagination: { currentPage: page, totalPages, totalItems, limit }
     });
   } catch (error) {

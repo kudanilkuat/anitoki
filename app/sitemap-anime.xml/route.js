@@ -45,8 +45,11 @@ export async function GET() {
     const urls = [];
 
     try {
-        await connectDB();
-        const animes = await Anime.find({}, { slug: 1, title: 1, status: 1, lastUpdated: 1, airDate: 1, coverImage: 1 }).lean();
+        // Filter out Hentai from public sitemap to protect main domain from Google SafeSearch flags
+        const animes = await Anime.find(
+            { type: { $ne: 'Hentai' }, genres: { $nin: ['Hentai', 'hentai'] } },
+            { slug: 1, title: 1, status: 1, lastUpdated: 1, airDate: 1, coverImage: 1 }
+        ).lean();
 
         const deployDate = new Date(DEPLOY_DATE);
         for (const anime of animes) {

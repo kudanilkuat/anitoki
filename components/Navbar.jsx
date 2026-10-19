@@ -170,6 +170,12 @@ export default function Navbar() {
               <Link href="/bookmarks" className={`text-sm font-semibold flex items-center gap-1.5 px-3 transition-colors h-14 relative ${pathname === '/bookmarks' ? 'text-primary-stitch after:absolute after:bottom-0 after:left-3 after:right-3 after:h-0.5 after:bg-primary-stitch after:rounded-full' : 'text-on-surface-variant hover:text-on-surface'}`}>
                 <BookmarkIcon active={pathname === '/bookmarks'} /> Library
               </Link>
+              <Link href="/download" className={`text-xs font-bold flex items-center gap-1.5 px-3 py-1.5 rounded-full transition-all border my-auto ${pathname === '/download' || pathname === '/app' ? 'bg-primary-container text-on-primary border-transparent shadow-sm' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/20'}`}>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.523 15.3414c-.5511 0-.9993-.4486-.9993-1.0001s.4482-1.0001.9993-1.0001c.552 0 1.0001.4486 1.0001 1.0001s-.4481 1.0001-1.0001 1.0001m-11.046 0c-.5511 0-.9993-.4486-.9993-1.0001s.4482-1.0001.9993-1.0001c.552 0 1.0001.4486 1.0001 1.0001s-.4481 1.0001-1.0001 1.0001m11.4045-6.02l1.9973-3.4592a.416.416 0 00-.1521-.5676.416.416 0 00-.5676.1521l-2.0223 3.503C15.5902 8.4116 13.8533 8.125 12 8.125s-3.5902.2866-5.1368.8247L4.8409 5.4467a.4161.4161 0 00-.5677-.1521.4157.4157 0 00-.152 1.5676l1.9973 3.4592C2.6889 12.138.3582 16.1415 0 20.875h24c-.3582-4.7335-2.6889-8.737-6.1185-11.5536" />
+                </svg>
+                <span>App</span>
+              </Link>
             </nav>
           </div>
 

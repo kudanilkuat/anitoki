@@ -5,6 +5,7 @@ import Script from 'next/script';
 import AnalyticsProvider from '@/components/AnalyticsProvider';
 import AdScript from '@/components/AdScript';
 import AdBanner from '@/components/AdBanner';
+import Footer from '@/components/Footer';
 
 
 const SITE_NAME = process.env.NEXT_PUBLIC_SITE_NAME || 'AnimeStream';
@@ -97,7 +98,7 @@ export default function RootLayout({ children }) {
           }}
         />
       </head>
-      <body className="bg-bg-primary text-text-primary font-body antialiased">
+      <body className="bg-bg-primary text-text-primary font-body antialiased min-h-screen flex flex-col">
 
         <AuthProvider>
           { }
@@ -105,9 +106,13 @@ export default function RootLayout({ children }) {
 
           <Suspense fallback={null}>
             <AnalyticsProvider>
-              {children}
+              <div className="flex-1 flex flex-col">
+                {children}
+              </div>
             </AnalyticsProvider>
           </Suspense>
+
+          <Footer />
 
           { }
           <AdBanner slot="STICKY_BOTTOM" sticky />

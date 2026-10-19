@@ -54,7 +54,14 @@ export async function GET(request) {
             query.title = { $regex: q, $options: 'i' };
         }
         if (status && status !== 'all') {
-            query.status = { $regex: new RegExp(`^${status}$`, 'i') };
+            const sLower = status.toLowerCase();
+            if (sLower === 'completed' || sLower === 'end' || sLower === 'complete') {
+                query.status = { $regex: /^(completed|complete|end)$/i };
+            } else if (sLower === 'ongoing' || sLower === 'airing') {
+                query.status = { $regex: /^(ongoing|airing)$/i };
+            } else {
+                query.status = { $regex: new RegExp(`^${status}$`, 'i') };
+            }
         }
         if (type && type !== 'all') {
             query.type = { $regex: new RegExp(`^${type}$`, 'i') };

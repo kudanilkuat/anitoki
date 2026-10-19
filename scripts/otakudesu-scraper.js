@@ -26,7 +26,7 @@ const { GoogleAuth } = require('google-auth-library');
 
 // ── Google Indexing API ───────────────────────────────────────────────────────
 
-// const INDEXING_TOKEN_PATH = path.resolve(__dirname, '../anitoki-token.json');
+const INDEXING_TOKEN_PATH = path.resolve(__dirname, '../anitoki-token.json');
 const SITE_BASE = 'https://anitoki.id';
 
 async function notifyGoogleIndex(pageUrl) {
@@ -185,6 +185,49 @@ function urlSlug(url) {
     return url.replace(/\/$/, '').split('/').pop();
 }
 
+function cleanEpisodeTitle(rawTitle, animeTitle = '') {
+    if (!rawTitle) return '';
+    let text = rawTitle
+        .replace(/\[\s*NEW\s+Release\s*\]/gi, '')
+        .replace(/\[\s*4K\s*\]/gi, '')
+        .replace(/\s*(?:Subtitle\s+Indonesia|Sub\s+Indo).*$/i, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    // 1. OVA (e.g. "Mangaka-san to Assistant-san to OVA 6" -> "OVA 6", "Episode OVA 01" -> "OVA 01", "11eyes OVA" -> "OVA")
+    const ovaMatch = text.match(/(?:Episode\s+)?\b(OVA(?:\s+\d+)?(?:\s*\([^)]+\))?)\b/i);
+    if (ovaMatch) return ovaMatch[1].trim();
+
+    // 2. Standard Episode: Episode 1, Episode 12 (End), etc.
+    const epMatch = text.match(/\bEpisode\s+\d+(?:\s*\([^)]+\))?/i);
+    if (epMatch) return epMatch[0].trim();
+
+    // 3. Special / SP
+    const spMatch = text.match(/\b(?:Special|SP)(?:\s+\d+)?(?:\s*\([^)]+\))?/i);
+    if (spMatch) return spMatch[0].trim();
+
+    // 4. ONA
+    const onaMatch = text.match(/\bONA(?:\s+\d+)?(?:\s*\([^)]+\))?/i);
+    if (onaMatch) return onaMatch[0].trim();
+
+    // 5. Movie
+    const movieMatch = text.match(/\bMovie(?:\s*:\s*.+)?$/i);
+    if (movieMatch) return movieMatch[0].trim();
+
+    // If the stripped text is identical to the anime title, don't treat trailing number of anime as episode number
+    if (animeTitle && text.toLowerCase() === animeTitle.toLowerCase().trim()) {
+        return text;
+    }
+
+    // 6. Ending in number, e.g. "Danshi Koukousei no Nichijou 12 (End)" -> "Episode 12 (End)"
+    const trailingNumMatch = text.match(/\s+(\d+(?:\s*\([^)]+\))?)$/);
+    if (trailingNumMatch) {
+        return 'Episode ' + trailingNumMatch[1].trim();
+    }
+
+    return text;
+}
+
 // ── parsers ───────────────────────────────────────────────────────────────────
 
 function parseAnimePage(html) {
@@ -204,7 +247,24 @@ function parseAnimePage(html) {
         synopsis: '',
         genres: [],
         episodes: [],
+        datePublished: null,
+        dateModified: null,
     };
+
+    // Extract Yoast Schema dates (datePublished & dateModified)
+    $('script.yoast-schema-graph, script[type="application/ld+json"]').each((_, el) => {
+        try {
+            const json = JSON.parse($(el).text());
+            const graph = json['@graph'] || (Array.isArray(json) ? json : [json]);
+            for (const node of graph) {
+                if (node.datePublished && !data.datePublished) data.datePublished = node.datePublished;
+                if (node.dateModified && !data.dateModified) data.dateModified = node.dateModified;
+            }
+        } catch (_) {}
+    });
+
+    if (!data.datePublished) data.datePublished = $('meta[property="article:published_time"]').attr('content') || null;
+    if (!data.dateModified) data.dateModified = $('meta[property="article:modified_time"]').attr('content') || null;
 
     // title — strip child <span> (view count)
     data.title = $('.jdlrx h1')
@@ -259,9 +319,7 @@ function parseAnimePage(html) {
         $(el).find('ul li').each((_, li) => {
             const a = $(li).find('span:first-child a');
             const rawTitle = a.text().trim();
-            // Extract "Episode N" or "Episode N (End)" from full title
-            const epMatch = rawTitle.match(/Episode\s+\d+(?:\s*\([^)]+\))?/i);
-            const epTitle = epMatch ? epMatch[0].trim() : rawTitle;
+            const epTitle = cleanEpisodeTitle(rawTitle, data.title);
             const epUrl = a.attr('href') || '';
             const epDate = $(li).find('.zeebr').text().trim();
             const epSlug = epUrl ? urlSlug(epUrl) : '';
@@ -519,23 +577,52 @@ async function scrapeOne(animeUrl, { scrapeEpisodes, dryRun, Anime, Episode }) {
     // tapi tak naik palsu tiap re-scrape tanpa perubahan.
     const prevAnime = await Anime.findOne({ slug }, 'episodes').lean();
     const prevEpCount = prevAnime?.episodes?.length ?? 0;
-    const hasNewEpisode = animeData.episodes.length > prevEpCount;
+    const hasNewEpisode = !prevAnime || animeData.episodes.length > prevEpCount;
+    // ── enrich with AniList GraphQL ──
+    let anilistMeta = null;
+    try {
+        const { findBestAniListMatch, mapAniListToAnime } = await import('../lib/anilist.js');
+        const match = await findBestAniListMatch({
+            title: animeData.title,
+            nativeTitle: animeData.nativeTitle,
+            slug,
+        });
+        if (match) {
+            console.log(`      AniList match: "${match.title?.romaji || match.title?.english}" (ID: ${match.id}, Score: ${match.averageScore})`);
+            anilistMeta = mapAniListToAnime(match, animeData, {
+                preserveIndonesianSynopsis: true,
+                overwriteCover: false,
+            });
+        }
+    } catch (e) {
+        console.warn(`      AniList lookup warn: ${e.message}`);
+    }
 
     const animeDoc = {
         title: animeData.title,
-        nativeTitle: animeData.nativeTitle,
+        nativeTitle: anilistMeta?.nativeTitle || animeData.nativeTitle,
         slug,
         coverImage: coverImageUrl,
-        type: animeData.type,
-        status: animeData.status,
-        airDate: animeData.airDate,
-        producer: animeData.producer,
-        studio: animeData.studio,
-        duration: animeData.duration,
-        totalEpisode: animeData.totalEpisode,
-        rating: animeData.rating,
-        synopsis: animeData.synopsis,
-        genres: animeData.genres,
+        bannerImage: anilistMeta?.bannerImage || undefined,
+        type: anilistMeta?.type || animeData.type,
+        status: animeData.status || anilistMeta?.status,
+        airDate: animeData.airDate || anilistMeta?.airDate,
+        producer: anilistMeta?.producer || animeData.producer,
+        studio: anilistMeta?.studio || animeData.studio,
+        duration: anilistMeta?.duration || animeData.duration,
+        totalEpisode: anilistMeta?.totalEpisode || animeData.totalEpisode,
+        rating: anilistMeta?.rating || animeData.rating,
+        synopsis: animeData.synopsis || anilistMeta?.synopsis,
+        synopsisEn: anilistMeta?.synopsisEn || undefined,
+        genres: anilistMeta?.genres || (Array.isArray(animeData.genres) ? animeData.genres.filter(Boolean) : []),
+        anilistId: anilistMeta?.anilistId || undefined,
+        malId: anilistMeta?.malId || undefined,
+        englishTitle: anilistMeta?.englishTitle || undefined,
+        romajiTitle: anilistMeta?.romajiTitle || undefined,
+        season: anilistMeta?.season || undefined,
+        seasonYear: anilistMeta?.seasonYear || undefined,
+        color: anilistMeta?.color || undefined,
+        sourceUrl: animeUrl,
         episodes: animeData.episodes.map((ep) => ({
             title: ep.title,
             slug: ep.slug,
@@ -543,9 +630,16 @@ async function scrapeOne(animeUrl, { scrapeEpisodes, dryRun, Anime, Episode }) {
             sourceUrl: ep.sourceUrl,
         })),
     };
-    if (hasNewEpisode) animeDoc.lastUpdated = new Date();
+    if (animeData.datePublished) {
+        animeDoc.createdAt = new Date(animeData.datePublished);
+    }
+    if (animeData.dateModified) {
+        animeDoc.lastUpdated = new Date(animeData.dateModified);
+    } else if (hasNewEpisode) {
+        animeDoc.lastUpdated = new Date();
+    }
 
-    await Anime.findOneAndUpdate({ slug }, { $set: animeDoc }, { upsert: true, new: true });
+    await Anime.findOneAndUpdate({ slug }, { $set: animeDoc }, { upsert: true, returnDocument: 'after' });
     console.log(`      Anime "${slug}" saved.${hasNewEpisode ? ` (+${animeData.episodes.length - prevEpCount} ep baru → naik ke recents)` : ''}`);
     if (!dryRun) await notifyGoogleIndex(`${SITE_BASE}/anime/${slug}`);
 

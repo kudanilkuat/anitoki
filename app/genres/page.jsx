@@ -129,7 +129,7 @@ export default async function GenresPage() {
           </div>
         )}
 
-        <div className="h-10" />
+        <div className="h-6" />
       </main>
     </div>
   );

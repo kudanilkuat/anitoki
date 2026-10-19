@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
     faChevronLeft, faChevronRight, faList, faExclamationCircle,
-    faPlay, faStar
+    faPlay, faStar, faDownload, faTv
 } from '@fortawesome/free-solid-svg-icons';
 import AdBanner from '@/components/AdBanner';
 import { useAuth } from '@/context/AuthContext';
 import CommentList from '@/components/CommentList';
+import AniListSyncButton from '@/components/AniListSyncButton';
+import AdultWarningModal from '@/components/AdultWarningModal';
 
 /* ─── Detect URL type ─────────────────────────────────────── */
 function detectUrlType(url = '') {
@@ -176,16 +178,21 @@ function HlsPlayer({ url, title }) {
 
 /* ─── Iframe embed player ─────────────────────────────────── */
 function IframePlayer({ url, title, episodeKey }) {
+    // Proksi URL jika berasal dari desustream atau domain terlindungi CSP frame-ancestors
+    const isProtected = /desustream\.(net|info|me|com)|desuplus|desudrive/i.test(url);
+    const finalUrl = isProtected ? `/api/proxy/stream?url=${encodeURIComponent(url)}` : url;
+
     return (
         <div className="relative w-full bg-black rounded-none md:rounded-xl overflow-hidden" style={{ aspectRatio: '16/9' }}>
             <iframe
                 key={episodeKey}
-                src={url}
+                src={finalUrl}
                 title={title}
                 className="absolute inset-0 w-full h-full border-0"
                 allowFullScreen
                 allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
                 scrolling="no"
+                referrerPolicy="no-referrer"
             />
         </div>
     );
@@ -275,11 +282,20 @@ export default function ReaderClient({ initialData }) {
         initPlayer();
     }, [slug, episodeSlug, data]);
 
-    // Default ke server desustream.info, fallback index 0
+    // Default ke server streaming yang paling stabil (filedon / vidhide / mega / ondesu / fallback index 0)
     useEffect(() => {
         const servers = data?.episode?.servers || data?.chapter?.servers || [];
-        const idx = servers.findIndex(s => s.url?.includes('desustream.info'));
-        setActiveServer(idx >= 0 ? idx : 0);
+        // Prioritaskan server embed stabil yang tidak terkena Google IP-lock
+        const priority = ['filedon', 'vidhide', 'mega', 'ondesu3', 'odstream', 'blogs', 'solidfiles'];
+        let bestIdx = -1;
+        for (const p of priority) {
+            const found = servers.findIndex(s => s.name?.toLowerCase().includes(p) || s.url?.toLowerCase().includes(p));
+            if (found >= 0) {
+                bestIdx = found;
+                break;
+            }
+        }
+        setActiveServer(bestIdx >= 0 ? bestIdx : 0);
     }, [episodeSlug, data]);
 
     // Save watch history
@@ -359,6 +375,7 @@ export default function ReaderClient({ initialData }) {
     const animeTitle = anime?.title || '';
     const episodeTitle = episode?.title || '';
     const playerKey = `${episodeSlug}-${activeServer}`;
+    const isAdult = anime?.genres?.some(g => (g || '').toLowerCase() === 'hentai') || anime?.type?.toLowerCase() === 'hentai';
 
     const filteredEpisodes = episodeList.filter(ep => {
         const q = episodeQuery.toLowerCase();
@@ -366,8 +383,22 @@ export default function ReaderClient({ initialData }) {
     });
 
     return (
-        <div className="min-h-screen bg-surface-deep text-on-surface">
-            <div className="max-w-[1400px] mx-auto px-4 py-6 md:py-8 flex flex-col gap-6">
+        <div className="min-h-screen bg-surface-deep text-on-surface relative">
+            {/* Adult 18+ Warning Modal */}
+            <AdultWarningModal isAdult={isAdult} animeTitle={animeTitle} />
+
+            {/* Backdrop Banner HD Glow */}
+            {(anime?.bannerImage || anime?.coverImage) && (
+                <div className="absolute top-0 inset-x-0 h-[480px] overflow-hidden pointer-events-none z-0">
+                    <img
+                        src={anime.bannerImage || anime.coverImage}
+                        alt=""
+                        className={`w-full h-full object-cover ${anime.bannerImage ? 'opacity-20 blur-md' : 'opacity-10 blur-2xl'} scale-105`}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-b from-surface-deep/40 via-surface-deep/85 to-surface-deep" />
+                </div>
+            )}
+            <div className="relative z-10 max-w-[1400px] mx-auto px-4 py-6 md:py-8 flex flex-col gap-6">
 
                 {/* ── BREADCRUMB HEADER ── */}
                 <nav className="flex items-center gap-1.5 text-xs text-on-surface-variant min-w-0">
@@ -396,58 +427,89 @@ export default function ReaderClient({ initialData }) {
                         </div>
 
                         {/* Ad Top */}
-                        <AdBanner slot="READER_TOP" />
+                        <AdBanner slot="STREAM_TOP" />
 
                         {/* Server Selector */}
                         {servers.length > 0 && (() => {
                             // Group servers by quality prefix (e.g. "480p - name" → quality "480p")
                             const qualities = [...new Set(servers.map(s => {
                                 const m = s.name?.match(/^(\d+p)/i);
-                                return m ? m[1] : null;
+                                return m ? m[1].toUpperCase() : null;
                             }).filter(Boolean))];
                             const hasQualityGroups = qualities.length > 0;
 
                             return (
-                                <div className="bg-surface-elevated rounded-xl p-4 border border-border-subtle/30 flex flex-col gap-3">
-                                    <span className="text-xs text-on-surface-variant font-semibold uppercase tracking-wider">Server Streaming</span>
+                                <div className="bg-surface-elevated rounded-xl p-4 md:p-5 border border-border-subtle/30 flex flex-col gap-3.5 shadow-sm">
+                                    <div className="flex items-center justify-between pb-2 border-b border-border-subtle/20">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-6 h-6 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary-stitch text-xs">
+                                                <FontAwesomeIcon icon={faTv} />
+                                            </div>
+                                            <span className="text-xs font-bold uppercase tracking-wider text-on-surface">Server Streaming</span>
+                                        </div>
+                                        {servers[activeServer] && (
+                                            <span className="text-[11px] text-on-surface-variant font-medium">
+                                                Aktif: <span className="text-primary-stitch font-semibold">{servers[activeServer]?.name || `Server ${activeServer + 1}`}</span>
+                                            </span>
+                                        )}
+                                    </div>
+
                                     {hasQualityGroups ? (
-                                        <div className="flex flex-col gap-2">
+                                        <div className="flex flex-col gap-2.5">
                                             {qualities.map(q => (
-                                                <div key={q} className="flex flex-wrap items-center gap-2">
-                                                    <span className="text-[10px] text-on-surface-variant font-bold uppercase w-10 shrink-0">{q}</span>
-                                                    {servers.map((srv, idx) => {
-                                                        const m = srv.name?.match(/^(\d+p)\s*-\s*(.+)$/i);
-                                                        if (!m || m[1] !== q) return null;
-                                                        return (
-                                                            <button
-                                                                key={idx}
-                                                                onClick={() => setActiveServer(idx)}
-                                                                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${activeServer === idx
-                                                                    ? 'bg-primary-container text-on-primary shadow-lg shadow-primary-container/20'
-                                                                    : 'bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-bright'
-                                                                    }`}
-                                                            >
-                                                                {m[2]}
-                                                            </button>
-                                                        );
-                                                    })}
+                                                <div
+                                                    key={q}
+                                                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-2.5 sm:p-3 rounded-xl bg-surface-container/30 border border-border-subtle/20 hover:border-border-subtle/40 transition-colors"
+                                                >
+                                                    {/* Quality Badge */}
+                                                    <div className="flex items-center gap-2 sm:min-w-[100px] shrink-0">
+                                                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide bg-primary-container/15 text-primary-stitch border border-primary-container/30">
+                                                            {q}
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Server Buttons */}
+                                                    <div className="grid grid-cols-2 xs:grid-cols-3 sm:flex sm:flex-wrap gap-2 flex-1 sm:justify-end">
+                                                        {servers.map((srv, idx) => {
+                                                            const m = srv.name?.match(/^(\d+p)\s*-\s*(.+)$/i);
+                                                            if (!m || m[1].toUpperCase() !== q) return null;
+                                                            const isActive = activeServer === idx;
+                                                            return (
+                                                                <button
+                                                                    key={idx}
+                                                                    onClick={() => setActiveServer(idx)}
+                                                                    className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 flex items-center justify-center gap-1.5 active:scale-95 ${isActive
+                                                                        ? 'bg-primary-container text-on-primary shadow-md shadow-primary-container/25 font-bold border border-primary-container'
+                                                                        : 'bg-surface-container hover:bg-surface-bright text-on-surface-variant hover:text-on-surface border border-border-subtle/30'
+                                                                        }`}
+                                                                >
+                                                                    {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                                                                    {m[2]}
+                                                                </button>
+                                                            );
+                                                        })}
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
                                         <div className="flex flex-wrap gap-2">
-                                            {servers.map((srv, idx) => (
-                                                <button
-                                                    key={idx}
-                                                    onClick={() => setActiveServer(idx)}
-                                                    className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${activeServer === idx
-                                                        ? 'bg-primary-container text-on-primary shadow-lg shadow-primary-container/20'
-                                                        : 'bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-bright'
-                                                        }`}
-                                                >
-                                                    {srv.name || `Server ${idx + 1}`}
-                                                </button>
-                                            ))}
+                                            {servers.map((srv, idx) => {
+                                                const isActive = activeServer === idx;
+                                                return (
+                                                    <button
+                                                        key={idx}
+                                                        onClick={() => setActiveServer(idx)}
+                                                        className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 flex items-center gap-1.5 active:scale-95 ${isActive
+                                                            ? 'bg-primary-container text-on-primary shadow-md shadow-primary-container/25 font-bold border border-primary-container'
+                                                            : 'bg-surface-container hover:bg-surface-bright text-on-surface-variant hover:text-on-surface border border-border-subtle/30'
+                                                            }`}
+                                                    >
+                                                        {isActive && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />}
+                                                        {srv.name || `Server ${idx + 1}`}
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </div>
@@ -455,52 +517,104 @@ export default function ReaderClient({ initialData }) {
                         })()}
 
                         {/* Actions & Navigation */}
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-surface-elevated p-3 rounded-xl border border-border-subtle/30">
-                            <div className="flex items-center gap-2">
-                                {navigation?.prev ? (
-                                    <Link href={`/episode/${slug}/${navigation.prev}`} className="flex items-center gap-1 px-3 py-1.5 hover:bg-surface-container text-on-surface-variant hover:text-on-surface rounded-lg text-xs font-semibold transition">
-                                        <FontAwesomeIcon icon={faChevronLeft} /> Prev
-                                    </Link>
-                                ) : (
-                                    <span className="flex items-center gap-1 px-3 py-1.5 text-on-surface-variant/30 rounded-lg text-xs font-semibold cursor-not-allowed">
-                                        <FontAwesomeIcon icon={faChevronLeft} /> Prev
-                                    </span>
-                                )}
-
-                                <Link href={`/anime/${anime?.slug || slug}`} className="flex items-center gap-1 px-3 py-1.5 bg-surface-container hover:bg-surface-bright text-on-surface-variant rounded-lg text-xs font-semibold transition">
-                                    <FontAwesomeIcon icon={faList} /> All
+                        <div className="bg-surface-elevated p-3 sm:p-4 rounded-xl border border-border-subtle/30 flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 shadow-sm">
+                            {/* Prev Button */}
+                            {navigation?.prev ? (
+                                <Link
+                                    href={`/episode/${slug}/${navigation.prev}`}
+                                    className="flex-1 sm:flex-initial flex items-center justify-center gap-2 h-9 sm:h-[38px] px-3.5 sm:px-4 bg-surface-container hover:bg-surface-bright text-on-surface rounded-xl text-xs font-bold transition-all border border-border-subtle/40 hover:border-border-subtle active:scale-95"
+                                >
+                                    <FontAwesomeIcon icon={faChevronLeft} className="text-[10px]" />
+                                    <span>Prev Ep</span>
                                 </Link>
+                            ) : (
+                                <span className="flex-1 sm:flex-initial flex items-center justify-center gap-2 h-9 sm:h-[38px] px-3.5 sm:px-4 bg-surface-container/40 text-on-surface-variant/30 rounded-xl text-xs font-semibold cursor-not-allowed border border-border-subtle/10">
+                                    <FontAwesomeIcon icon={faChevronLeft} className="text-[10px]" />
+                                    <span>Prev Ep</span>
+                                </span>
+                            )}
 
-                                {navigation?.next ? (
-                                    <Link href={`/episode/${slug}/${navigation.next}`} className="flex items-center gap-1 px-3 py-1.5 bg-primary-container hover:brightness-110 text-on-primary rounded-lg text-xs font-semibold transition">
-                                        Next <FontAwesomeIcon icon={faChevronRight} />
-                                    </Link>
-                                ) : (
-                                    <span className="flex items-center gap-1 px-3 py-1.5 bg-surface-container text-on-surface-variant/30 rounded-lg text-xs font-semibold cursor-not-allowed">
-                                        Next <FontAwesomeIcon icon={faChevronRight} />
-                                    </span>
-                                )}
+                            {/* Center: AniList Sync & All Episodes */}
+                            <div className="flex items-center gap-2 flex-wrap justify-center order-3 sm:order-none w-full sm:w-auto">
+                                <AniListSyncButton
+                                    animeSlug={anime?.slug || slug}
+                                    anilistId={anime?.anilistId}
+                                    episodeNumber={episode?.episodeIndex}
+                                    episodeTitle={episodeTitle}
+                                    episodeSlug={episodeSlug}
+                                    totalEpisode={anime?.totalEpisode}
+                                />
+
+                                <Link
+                                    href={`/anime/${anime?.slug || slug}`}
+                                    className="flex items-center justify-center gap-1.5 h-9 sm:h-[38px] px-3.5 sm:px-4 bg-surface-container/80 hover:bg-surface-bright text-on-surface-variant hover:text-on-surface rounded-xl text-xs font-semibold transition-all border border-border-subtle/30 active:scale-95"
+                                >
+                                    <FontAwesomeIcon icon={faList} className="text-xs text-primary-stitch" />
+                                    <span className="hidden xs:inline">Semua Episode</span>
+                                    <span className="xs:hidden">All</span>
+                                </Link>
                             </div>
+
+                            {/* Next Button */}
+                            {navigation?.next ? (
+                                <Link
+                                    href={`/episode/${slug}/${navigation.next}`}
+                                    className="flex-1 sm:flex-initial flex items-center justify-center gap-2 h-9 sm:h-[38px] px-3.5 sm:px-4 bg-primary-container hover:brightness-110 active:scale-95 text-on-primary rounded-xl text-xs font-bold transition-all shadow-md shadow-primary-container/20 border border-primary-container"
+                                >
+                                    <span>Next Ep</span>
+                                    <FontAwesomeIcon icon={faChevronRight} className="text-[10px]" />
+                                </Link>
+                            ) : (
+                                <span className="flex-1 sm:flex-initial flex items-center justify-center gap-2 h-9 sm:h-[38px] px-3.5 sm:px-4 bg-surface-container/40 text-on-surface-variant/30 rounded-xl text-xs font-semibold cursor-not-allowed border border-border-subtle/10">
+                                    <span>Next Ep</span>
+                                    <FontAwesomeIcon icon={faChevronRight} className="text-[10px]" />
+                                </span>
+                            )}
                         </div>
 
                         {/* Download Links */}
                         {downloads.length > 0 && (
-                            <div className="bg-surface-elevated rounded-xl p-4 border border-border-subtle/30 flex flex-col gap-3">
-                                <span className="text-xs text-on-surface-variant font-semibold uppercase tracking-wider">Link Download</span>
-                                <div className="flex flex-col gap-2">
+                            <div className="bg-surface-elevated rounded-xl p-4 md:p-5 border border-border-subtle/30 flex flex-col gap-3 shadow-sm">
+                                <div className="flex items-center justify-between pb-2 border-b border-border-subtle/20">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-6 h-6 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary-stitch text-xs">
+                                            <FontAwesomeIcon icon={faDownload} />
+                                        </div>
+                                        <span className="text-xs font-bold uppercase tracking-wider text-on-surface">Link Download</span>
+                                    </div>
+                                    <span className="text-[11px] text-on-surface-variant font-medium">{downloads.length} Pilihan Kualitas</span>
+                                </div>
+
+                                <div className="flex flex-col gap-2.5">
                                     {downloads.map((dl, i) => (
-                                        <div key={i} className="flex flex-wrap items-center gap-2">
-                                            <span className="text-[10px] text-on-surface-variant font-bold uppercase w-10 shrink-0">{dl.quality}</span>
-                                            {dl.size && <span className="text-[10px] text-on-surface-variant">({dl.size})</span>}
-                                            {dl.links?.map((lnk, j) => (
-                                                <a
-                                                    key={j}
-                                                    href={lnk.url ? `/dl?url=${btoa(lnk.url)}&label=${encodeURIComponent(lnk.name || dl.quality)}` : '#'}
-                                                    className="px-3 py-1 rounded-lg text-xs font-bold bg-surface-container text-on-surface-variant hover:text-on-surface hover:bg-surface-bright transition-all"
-                                                >
-                                                    {lnk.name}
-                                                </a>
-                                            ))}
+                                        <div
+                                            key={i}
+                                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-surface-container/30 border border-border-subtle/20 hover:border-border-subtle/40 transition-colors"
+                                        >
+                                            {/* Quality & Size */}
+                                            <div className="flex items-center gap-2 sm:min-w-[160px] shrink-0">
+                                                <span className="px-2.5 py-1 rounded-md text-[11px] font-bold uppercase tracking-wide bg-primary-container/15 text-primary-stitch border border-primary-container/30">
+                                                    {dl.quality}
+                                                </span>
+                                                {dl.size && (
+                                                    <span className="text-[11px] text-on-surface-variant font-medium bg-surface-bright/40 px-2 py-0.5 rounded text-gray-400">
+                                                        {dl.size}
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            {/* Mirror Buttons */}
+                                            <div className="grid grid-cols-2 xs:grid-cols-3 sm:flex sm:flex-wrap gap-2 flex-1 sm:justify-end">
+                                                {dl.links?.map((lnk, j) => (
+                                                    <a
+                                                        key={j}
+                                                        href={lnk.url ? `/dl?url=${btoa(lnk.url)}&label=${encodeURIComponent(`${animeTitle} ${episodeTitle} - ${dl.quality} (${lnk.name})`)}` : '#'}
+                                                        className="px-3.5 py-1.5 rounded-lg text-xs font-semibold text-center bg-surface-container hover:bg-primary-container hover:text-on-primary text-on-surface-variant transition-all duration-150 border border-border-subtle/30 hover:border-primary-container hover:shadow-md hover:shadow-primary-container/10 active:scale-95"
+                                                    >
+                                                        {lnk.name}
+                                                    </a>
+                                                ))}
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
@@ -521,14 +635,14 @@ export default function ReaderClient({ initialData }) {
                         </div>
 
                         {/* Ad Bottom */}
-                        <AdBanner slot="READER_BOTTOM" />
+                        <AdBanner slot="STREAM_BOTTOM" />
 
-                        {/* Comments Section
-      <div className="bg-[#16151d] rounded-xl border border-white/5 overflow-hidden">
-        <div className="p-4 md:p-6">
-          <CommentList slug={`${slug}-${episodeSlug}`} />
-        </div>
-      </div> */}
+                        {/* {/* Comments Section */}
+                        {/* <div className="bg-[#16151d] rounded-xl border border-white/5 overflow-hidden">
+                            <div className="p-4 md:p-6">
+                                <CommentList slug={`${slug}-${episodeSlug}`} />
+                            </div>
+                        </div> */}
 
                         {/* Seri Serupa (Moved to below comments) */}
                         {recommendations.length > 0 && (
@@ -537,7 +651,7 @@ export default function ReaderClient({ initialData }) {
                                     <h2 className="text-sm font-bold text-on-surface uppercase tracking-wider">Seri Serupa</h2>
                                 </div>
                                 <div className="p-3 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
-                                    {recommendations.map(rec => (
+                                    {recommendations.slice(0, 6).map(rec => (
                                         <RecCard key={rec.slug} anime={rec} />
                                     ))}
                                 </div>

@@ -19,13 +19,18 @@ export async function GET(request) {
             return NextResponse.json({ success: false, message: 'slug diperlukan' }, { status: 400 });
         }
 
+        const query = {
+            slug,
+            $or: [{ status: 'approved' }, { status: { $exists: false } }],
+        };
+
         const [comments, total] = await Promise.all([
-            Comment.find({ slug })
+            Comment.find(query)
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
                 .lean(),
-            Comment.countDocuments({ slug }),
+            Comment.countDocuments(query),
         ]);
 
         // Format agar sesuai struktur yang dipakai CommentList
@@ -40,6 +45,7 @@ export async function GET(request) {
                 totalReadingMinutes: c.totalReadingMinutes,
             },
             text:      c.text,
+            status:    c.status || 'approved',
             createdAt: c.createdAt,
         }));
 
@@ -82,6 +88,7 @@ export async function POST(request) {
         );
 
         const newTotalMinutes = updatedUser ? updatedUser.totalReadingMinutes : (totalReadingMinutes || 0);
+        const commentStatus = isAdmin ? 'approved' : 'pending';
 
         const comment = await Comment.create({
             slug,
@@ -92,6 +99,7 @@ export async function POST(request) {
             isAdmin:     isAdmin     || false,
             totalReadingMinutes: newTotalMinutes,
             text: text.trim(),
+            status: commentStatus,
         });
 
         return NextResponse.json({
@@ -107,6 +115,7 @@ export async function POST(request) {
                     totalReadingMinutes: comment.totalReadingMinutes,
                 },
                 text:      comment.text,
+                status:    comment.status,
                 createdAt: comment.createdAt,
             },
         }, { status: 201 });

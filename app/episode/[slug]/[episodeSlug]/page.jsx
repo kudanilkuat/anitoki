@@ -62,10 +62,19 @@ export async function generateMetadata({ params }) {
     const canonicalUrl = `${SITE_URL}/episode/${slug}/${episodeSlug}`;
     const coverImage = anime.coverImage || `${SITE_URL}/og-image.png`;
 
+    const isHentai = anime.genres?.some(g => (g || '').toLowerCase() === 'hentai') || anime.type?.toLowerCase() === 'hentai';
+
     return {
         title: baseTitle,
         description,
         alternates: { canonical: canonicalUrl },
+        robots: isHentai
+            ? { index: false, follow: true, noarchive: true, nosnippet: true }
+            : { index: true, follow: true, noarchive: false },
+        other: isHentai ? {
+            rating: 'adult',
+            'RTA-5042-1996-1400-1579-1604-10': 'adult',
+        } : {},
         openGraph: {
             title: `${baseTitle} - ${SITE_NAME}`,
             description,
@@ -81,7 +90,6 @@ export async function generateMetadata({ params }) {
             description,
             images: [coverImage],
         },
-        robots: { index: true, follow: true, noarchive: false },
     };
 }
 
@@ -172,20 +180,6 @@ export default async function EpisodePlayerPage({ params }) {
                 <main className="flex-1 mt-14 md:mt-16 w-full max-w-[1400px] mx-auto">
                     <ReaderClient initialData={data} />
                 </main>
-
-                <footer className="pt-8 pb-24 md:pb-8 border-t border-border-subtle/40 mt-12 flex flex-col items-center w-full max-w-[1400px] mx-auto relative z-10">
-                    <div className="flex flex-wrap justify-center gap-4 sm:gap-6 mb-4 px-4">
-                        <a href="/privacy-policy" className="text-[13px] sm:text-sm font-semibold text-primary-stitch hover:text-on-surface transition-colors">
-                            Privacy Policy
-                        </a>
-                        <a href="/terms" className="text-[13px] sm:text-sm font-semibold text-primary-stitch hover:text-on-surface transition-colors">
-                            Terms of Service
-                        </a>
-                    </div>
-                    <p className="text-center text-on-surface-variant/50 text-[11px] sm:text-xs">
-                        © 2026 {process.env.NEXT_PUBLIC_SITE_NAME || 'AnimeStream'} · All rights reserved.
-                    </p>
-                </footer>
             </div>
         </>
     );

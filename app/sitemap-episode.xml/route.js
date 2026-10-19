@@ -30,8 +30,9 @@ export async function GET() {
 
     try {
         await connectDB();
+        // Filter out Hentai from public sitemap to protect main domain from Google SafeSearch flags
         const animes = await Anime.find(
-            {},
+            { type: { $ne: 'Hentai' }, genres: { $nin: ['Hentai', 'hentai'] } },
             { slug: 1, status: 1, 'episodes.slug': 1 }
         ).lean();
 

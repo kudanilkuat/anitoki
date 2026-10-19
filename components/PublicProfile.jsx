@@ -7,9 +7,9 @@ import Navbar from '@/components/Navbar';
 import { getPublicBookmarks, calcBookmarkStats, READING_STATUS } from '@/lib/bookmarks';
 import { getPublicProfile, updateUserProfile, calcUserLevel, getUserShortId } from '@/lib/profile';
 import { useAuth } from '@/context/AuthContext';
-import PremiumSubscribe from '@/components/PremiumSubscribe';
+import DonationCard from '@/components/DonationCard';
 import QRModal from '@/components/QRModal';
-import CoinWallet from '@/components/CoinWallet';
+import AniListProfileCard from '@/components/AniListProfileCard';
 
 // ── Komponen Banner Riwayat Pembayaran Pending ──────────────────────────────
 function PendingOrdersBanner({ userId, userUid }) {
@@ -99,21 +99,11 @@ function PendingOrdersBanner({ userId, userUid }) {
     return { text: 'Menunggu Konfirmasi', cls: 'text-status-pending bg-status-pending/10 border-status-pending/30' };
   };
 
-  if (loading) return null;
+  if (loading || orders.length === 0) return null;
 
   return (
     <>
       <div className="space-y-5">
-        {/* Dompet Koin — selalu tampil */}
-        <CoinWallet
-          coins={coins}
-          userUid={userUid}
-          onRedeemSuccess={(data) => {
-            setCoins(data.coinsRemaining);
-            window.location.reload();
-          }}
-        />
-
         {/* Riwayat Pembayaran — hanya jika ada order */}
         {orders.length > 0 && (
           <>
@@ -626,7 +616,7 @@ export default function PublicProfile({ userId }) {
 
                 { }
                 <div className="mt-6 w-full pt-5 border-t border-border-subtle/30 flex items-center justify-between px-2">
-                  <StatCard value={profile?.stats?.totalReadingMinutes || 0} label="Menit Membaca" color="text-primary-stitch" />
+                  <StatCard value={profile?.stats?.totalReadingMinutes || 0} label="Menit Menonton" color="text-primary-stitch" />
                   <div className="w-px h-10 bg-border-subtle/40" />
                   <StatCard
                     value={profile?.createdAt ? new Date(profile.createdAt).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }) : 'Mar 2026'}
@@ -639,17 +629,20 @@ export default function PublicProfile({ userId }) {
 
             {/* Riwayat Pembayaran Pending — tampil saat user adalah pemilik profil */}
             {isOwn && (
-              <PendingOrdersBanner userId={userId} userUid={user?.uid} />
+              <>
+                <PendingOrdersBanner userId={userId} userUid={user?.uid} />
+                <AniListProfileCard userUid={user?.uid} />
+              </>
             )}
           </div>
 
           {/* === KANAN: Premium & Bookmarks === */}
           <div className="lg:col-span-7 space-y-6">
 
-            {/* Widget berlangganan — hanya tampil jika belum premium */}
-            {isOwn && !profile?.isPremium && (
+            {/* Donasi Section */}
+            {isOwn && (
               <div className="mt-0">
-                <PremiumSubscribe />
+                <DonationCard />
               </div>
             )}
 

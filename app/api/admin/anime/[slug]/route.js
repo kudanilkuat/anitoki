@@ -58,6 +58,7 @@ const buildUpdatePayload = (body, slug) => {
     if (body.nativeTitle !== undefined) update.nativeTitle = (body.nativeTitle || '').trim();
     if (slug) update.slug = slug;
     if (body.coverImage !== undefined) update.coverImage = (body.coverImage || '').trim();
+    if (body.bannerImage !== undefined) update.bannerImage = (body.bannerImage || '').trim();
     if (body.type !== undefined) update.type = (body.type || 'Anime').trim();
     if (body.rating !== undefined) update.rating = toNumber(body.rating, 0);
     if (body.views !== undefined) update.views = toNumber(body.views, 0);
@@ -68,9 +69,19 @@ const buildUpdatePayload = (body, slug) => {
     if (body.duration !== undefined) update.duration = (body.duration || '').trim();
     if (body.totalEpisode !== undefined) update.totalEpisode = toNumber(body.totalEpisode, 0);
     if (body.synopsis !== undefined) update.synopsis = (body.synopsis || '').trim();
+    if (body.synopsisEn !== undefined) update.synopsisEn = (body.synopsisEn || '').trim();
     if (body.sourceUrl !== undefined) update.sourceUrl = (body.sourceUrl || '').trim() || undefined;
     if (body.genres !== undefined) update.genres = normalizeGenres(body.genres);
     if (body.episodes !== undefined) update.episodes = normalizeEpisodes(body.episodes);
+    if (body.anilistId !== undefined) update.anilistId = toNumber(body.anilistId, null);
+    if (body.malId !== undefined) update.malId = toNumber(body.malId, null);
+    if (body.englishTitle !== undefined) update.englishTitle = (body.englishTitle || '').trim();
+    if (body.romajiTitle !== undefined) update.romajiTitle = (body.romajiTitle || '').trim();
+    if (body.season !== undefined) update.season = (body.season || '').trim();
+    if (body.seasonYear !== undefined) update.seasonYear = toNumber(body.seasonYear, null);
+    if (body.color !== undefined) update.color = (body.color || '').trim();
+    if (body.createdAt !== undefined) update.createdAt = new Date(body.createdAt);
+    if (body.lastUpdated !== undefined) update.lastUpdated = new Date(body.lastUpdated);
 
     return update;
 };
