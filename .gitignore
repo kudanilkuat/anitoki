@@ -65,3 +65,6 @@ url*.txt
 mobile/
 *.keystore
 *.jks
+
+# scripts
+scripts/
